@@ -1,28 +1,35 @@
 from datetime import datetime
 import csv
-import os
+import os, sys
 from pyspark.sql import functions as F
-
 
 # This is needed to have a verbose option. If the VERBOSE environment variable is set to True, the verbose option is activated, Default is False.
 verbose = bool(os.getenv('VERBOSE', 'False'))
-v_print = print if verbose else lambda *a, **k: None
+
+if sys.version_info[0] < 3:
+	def v_print(*args, **kwargs):
+		if verbose:
+			print(*args, **kwargs)
+
+
+elif sys.version_info[0] >= 3:
+	v_print = print if verbose else lambda *a, **k: None
 
 
 def check_numeric(df, column:str , check:str, boundary = None, boundary2 = None, gravity = 'Warning'):
 	checks = ['greater', 'less', 'equal', 'greater_equal', 'less_equal', 'not_equal', 'between', 'not_between']
 	if check not in checks:
 		raise ValueError('Error: Invalid check type; expected one of: %s' % checks)
-	if ( isinstance(boundary, (int, float, complex)) == False or isinstance(boundary2, (int, float, complex)) == False):
+	if (isinstance(boundary, (int, float, complex)) == False or (isinstance(boundary2, (int, float, complex)) == False and boundary2 != None)):
 		raise ValueError('Error: Boundary must be a number')
 	# need to check if the column is numeric
 	v_print('Warning: Verification of column type is not implemented yet')
 
 	if check == 'greater':
-			result = df.filter(df[column] >= boundary)
+			result = df.filter(df[column] > boundary)
 			if boundary2 != None : v_print('Warning: Boundary2 is not used in this check')
 	elif check == 'less':
-			result = df.filter(df[column] <= boundary)
+			result = df.filter(df[column] < boundary)
 			if boundary2 != None : v_print('Warning: Boundary2 is not used in this check')
 	elif check == 'equal':
 			result = df.filter(df[column] == boundary)
@@ -53,7 +60,7 @@ def check_numeric(df, column:str , check:str, boundary = None, boundary2 = None,
 
 
 def check_string(df, column:str , check:str, boundary = None, boundary2 = None, gravity = 'Warning'):
-	checks = ['equal','not_equal','eq_len','not_eq_len','len_between','len_not_between','regex']
+	checks = ['equal','not_equal','eq_len','not_eq_len','len_between','len_not_between','regex','null']
 	if check not in checks:
 		raise ValueError('Error: Invalid check type; expected one of: %s' % checks)
 	# need to check if the column is string
@@ -80,6 +87,9 @@ def check_string(df, column:str , check:str, boundary = None, boundary2 = None, 
 		result = df.filter(df[column].rlike(boundary))
 		if boundary2 != None : v_print('Warning: Boundary2 is not used in this check')
 		# maybe the second boundary can be used as a second regex?
+	elif check == 'null':
+		result = df.filter(df[column].isNull())
+		if boundary2 != None : v_print('Warning: Boundary2 is not used in this check')
 	
 	if result.count() > 0:
 		text = 'checking ' + check + ' ' + column + ' ' + str(boundary) + ' ' + str(boundary2) + ' ' + 'time: ' + str(int(datetime.datetime.now().timestamp()))
